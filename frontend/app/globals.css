@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  /* Core Palette */
+  --color-forest: #244C3B;
+  --color-forest-deep: #1A3A2C;
+  --color-ivory: #F7F4EB;
+  --color-paper: #FFFDF8;
+  --color-charcoal: #252722;
+  --color-ink-muted: #5E6158;
+  --color-line: #E3DDCB;
+  --color-sage: #A5B69A;
+  --color-sage-light: #DCE5D5;
+  --color-terracotta: #C76B50;
+  --color-terracotta-deep: #A9502F;
+  --color-gold: #D8AD58;
+  --color-gold-light: #F3E3BC;
+
+  /* Status Colors */
+  --color-st-fresh-bg: #DCE5D5;
+  --color-st-fresh-fg: #244C3B;
+  --color-st-soon-bg: #F3E3BC;
+  --color-st-soon-fg: #6B4E0E;
+  --color-st-urgent-bg: #F6DDD3;
+  --color-st-urgent-fg: #8A3E22;
+  --color-st-done-bg: #244C3B;
+  --color-st-done-fg: #FFFDF8;
+
+  /* Typography */
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-ivory text-charcoal font-body;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+  }
+}
