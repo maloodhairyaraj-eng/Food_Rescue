@@ -1,3 +1,8 @@
+const {
+    isApprovalRequired,
+    canOrganizationParticipate,
+    sqlEligibilityCondition,
+} = require("../utils/organization-eligibility");
 
 const { pool } = require("../config/db");
 
@@ -6,6 +11,7 @@ function httpError(statusCode, message) {
     error.statusCode = statusCode;
     return error;
 }
+
 
 const ASSIGNMENT_SELECT = `
   a.id,
@@ -18,13 +24,39 @@ const ASSIGNMENT_SELECT = `
   a.completed_at,
   a.created_at,
   a.updated_at,
+
   p.status AS pickup_status,
+
   f.id AS food_listing_id,
   f.title AS food_title,
+  f.description AS food_description,
+  f.food_type,
+  f.quantity,
+  f.quantity_unit,
   f.status AS listing_status,
+  f.prepared_at,
+  f.expires_at,
+  f.pickup_start_at,
+  f.pickup_end_at,
+  f.pickup_address,
+
+  ST_Y(f.pickup_location::geometry)
+    AS pickup_latitude,
+  ST_X(f.pickup_location::geometry)
+    AS pickup_longitude,
+
   ngo.name AS ngo_name,
-  donor.name AS donor_name
+  ngo.address AS ngo_address,
+
+  ST_Y(ngo.location::geometry)
+    AS ngo_latitude,
+  ST_X(ngo.location::geometry)
+    AS ngo_longitude,
+
+  donor.name AS donor_name,
+  donor.address AS donor_address
 `;
+
 
 const ASSIGNMENT_JOINS = `
   FROM volunteer_assignments a
@@ -38,26 +70,67 @@ const ASSIGNMENT_JOINS = `
     ON donor.id = f.donor_organization_id
 `;
 
+
 function formatAssignment(row) {
+    const pickupLocation =
+        row.pickup_latitude != null &&
+            row.pickup_longitude != null
+            ? {
+                latitude: Number(row.pickup_latitude),
+                longitude: Number(row.pickup_longitude),
+            }
+            : null;
+
+    const ngoLocation =
+        row.ngo_latitude != null &&
+            row.ngo_longitude != null
+            ? {
+                latitude: Number(row.ngo_latitude),
+                longitude: Number(row.ngo_longitude),
+            }
+            : null;
+
     return {
         id: row.id,
         pickupRequestId: row.pickup_request_id,
         volunteerUserId: row.volunteer_user_id,
         assignedByUserId: row.assigned_by_user_id,
+
         status: row.status,
         assignedAt: row.assigned_at,
         pickedUpAt: row.picked_up_at,
         completedAt: row.completed_at,
+
         foodListingId: row.food_listing_id,
         foodTitle: row.food_title,
+        foodDescription: row.food_description,
+        foodType: row.food_type,
+        quantity: Number(row.quantity),
+        quantityUnit: row.quantity_unit,
+
         pickupStatus: row.pickup_status,
         listingStatus: row.listing_status,
+
+        preparedAt: row.prepared_at,
+        expiresAt: row.expires_at,
+        pickupStartAt: row.pickup_start_at,
+        pickupEndAt: row.pickup_end_at,
+
+        pickupAddress: row.pickup_address,
+        pickupLocation,
+
         ngoName: row.ngo_name,
+        ngoAddress: row.ngo_address,
+        ngoLocation,
+
         donorName: row.donor_name,
+        donorAddress: row.donor_address,
+
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     };
 }
+
 
 async function readAssignment(client, id) {
     const result = await client.query(
@@ -127,12 +200,13 @@ async function assignVolunteer(requestId, user, volunteerId) {
             throw httpError(409, "Pickup is not ready for assignment");
         }
 
-        if (
-            !pickup.is_verified ||
-            pickup.verification_status !== "approved"
-        ) {
-            throw httpError(403, "NGO is not verified");
+        if (!canOrganizationParticipate(pickup)) {
+            throw httpError(
+                403,
+                "NGO organization is not eligible"
+            );
         }
+
 
         if (
             new Date(listing.rows[0].expires_at).getTime() <= Date.now() ||
@@ -142,15 +216,59 @@ async function assignVolunteer(requestId, user, volunteerId) {
         }
 
 
+
         const volunteer = await client.query(
             `
-  SELECT id, role, is_active
-  FROM users
-  WHERE id = $1
-  FOR UPDATE
+  SELECT
+    u.id,
+    u.role,
+    u.is_active,
+    v.is_available
+  FROM users u
+  LEFT JOIN volunteers v
+    ON v.user_id = u.id
+  WHERE u.id = $1
+  FOR UPDATE OF u
   `,
             [volunteerId]
         );
+
+        if (
+            !volunteer.rowCount ||
+            volunteer.rows[0].role !== "volunteer" ||
+            volunteer.rows[0].is_active !== true
+        ) {
+            throw httpError(
+                404,
+                "Active volunteer not found"
+            );
+        }
+
+        if (volunteer.rows[0].is_available !== true) {
+            throw httpError(
+                409,
+                "Volunteer is currently unavailable"
+            );
+        }
+
+        const busy = await client.query(
+            `
+                SELECT id
+                FROM volunteer_assignments
+                WHERE volunteer_user_id = $1
+                    AND status IN ('assigned', 'picked_up')
+                LIMIT 1
+                `,
+            [volunteerId]
+        );
+
+        if (busy.rowCount) {
+            throw httpError(
+                409,
+                "Volunteer already has an active assignment"
+            );
+        }
+
 
         if (
             !volunteer.rowCount ||

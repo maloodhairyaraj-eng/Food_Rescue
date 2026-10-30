@@ -1,4 +1,6 @@
 
+"use strict";
+
 const express = require("express");
 
 const {
@@ -18,12 +20,45 @@ const {
   updateAssignmentStatusValidation,
 } = require("../validators/volunteer.validator");
 
-const controller = require("../controllers/volunteer.controller");
+const {
+  updateAvailabilityValidation,
+} = require("../validators/volunteer-directory.validator");
+
+const controller = require(
+  "../controllers/volunteer.controller"
+);
+
+const directoryController = require(
+  "../controllers/volunteer-directory.controller"
+);
 
 const router = express.Router();
 
 router.use(authenticate);
 
+// NGO volunteer directory.
+// Assignment permission is required.
+router.get(
+  "/directory",
+  authorize(PERMISSIONS.PICKUP_ASSIGN),
+  directoryController.getDirectory
+);
+
+// Volunteer's own availability.
+router.get(
+  "/availability",
+  authorize(PERMISSIONS.DELIVERY_MANAGE),
+  directoryController.getAvailability
+);
+
+router.patch(
+  "/availability",
+  authorize(PERMISSIONS.DELIVERY_MANAGE),
+  updateAvailabilityValidation,
+  directoryController.updateAvailability
+);
+
+// Existing assignment routes.
 router.get(
   "/assignments",
   authorize(PERMISSIONS.DELIVERY_MANAGE),
@@ -32,6 +67,7 @@ router.get(
 
 router.get(
   "/assignments/:id",
+  authorize(PERMISSIONS.DELIVERY_MANAGE),
   assignmentIdValidation,
   controller.getById
 );
