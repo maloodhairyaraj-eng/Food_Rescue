@@ -1,37 +1,337 @@
 "use client";
 
-import React, { useState } from 'react';
-import { 
-  LayoutDashboard, PlusCircle, List as ListIcon, Users, PackageOpen, 
-  BarChart3, Star, User as UserIcon, Settings, Bell, Leaf, Clock, 
-  MapPin, CheckCircle2, ChevronRight, AlertCircle, Menu, XCircle,
-  Filter, ShieldCheck, MessageSquare, Edit3, Save, X, Globe, Shield, LogOut, Trash2
-} from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { api } from "../../lib/api/client";
+
+import {
+  LayoutDashboard,
+  PlusCircle,
+  List as ListIcon,
+  Users,
+  PackageOpen,
+  BarChart3,
+  Star,
+  User as UserIcon,
+  Settings,
+  Bell,
+  Leaf,
+  Clock,
+  MapPin,
+  CheckCircle2,
+  ChevronRight,
+  Menu,
+  XCircle,
+  ShieldCheck,
+  Edit3,
+  Save,
+  X,
+  Globe,
+  Shield,
+  LogOut,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { authStorage } from "../../lib/api/client";
+
+
+function formatDateTime(value) {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date";
+  }
+
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function normalizeDonation(listing) {
+  const statusLabels = {
+    available: "Available",
+    reserved: "Reserved",
+    picked_up: "Picked Up",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    expired: "Expired",
+  };
+
+  return {
+    ...listing,
+    food: listing.title,
+    qty: `${listing.quantity} ${listing.quantityUnit}`,
+    prepared: formatDateTime(listing.preparedAt),
+    deadline: formatDateTime(listing.pickupEndAt),
+    status:
+      statusLabels[listing.status] ||
+      listing.status,
+    ngo: "Not available",
+  };
+}
+
+
+function localDateTimeToISO(value) {
+  if (!value || typeof value !== "string") {
+    throw new Error("Date and time are required");
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date and time");
+  }
+
+  return date.toISOString();
+}
+
+
+
 
 export default function RestaurantDashboard() {
+
+  const router = useRouter();
+
+
+  async function handlePublishDonation(event) {
+    event.preventDefault();
+
+    if (publishingDonation) return;
+
+    setDonationFormError("");
+    setDonationFormSuccess("");
+
+    try {
+      if (!profile?.id) {
+        throw new Error(
+          "Restaurant organization profile is missing"
+        );
+      }
+
+      if (
+        !profile.isVerified ||
+        profile.verificationStatus !== "approved"
+      ) {
+        throw new Error(
+          "Your restaurant must be verified before publishing food."
+        );
+      }
+
+      if (!profile.location) {
+        throw new Error(
+          "Restaurant pickup coordinates are missing."
+        );
+      }
+
+      if (!donationForm.safetyConfirmed) {
+        throw new Error(
+          "Please confirm the food safety declaration."
+        );
+      }
+
+      const quantity = Number(donationForm.quantity);
+
+      if (
+        !Number.isFinite(quantity) ||
+        quantity <= 0
+      ) {
+        throw new Error(
+          "Quantity must be a positive number."
+        );
+      }
+
+      const preparedAt = localDateTimeToISO(
+        donationForm.preparedAt
+      );
+
+      const pickupStartAt = localDateTimeToISO(
+        donationForm.pickupStartAt
+      );
+
+      const pickupEndAt = localDateTimeToISO(
+        donationForm.pickupEndAt
+      );
+
+      const expiresAt = localDateTimeToISO(
+        donationForm.expiresAt
+      );
+
+      const now = Date.now();
+
+      if (new Date(preparedAt).getTime() > now) {
+        throw new Error(
+          "Preparation time cannot be in the future."
+        );
+      }
+
+      if (new Date(expiresAt).getTime() <= now) {
+        throw new Error(
+          "Food expiry must be in the future."
+        );
+      }
+
+      if (
+        new Date(pickupStartAt).getTime() >=
+        new Date(pickupEndAt).getTime()
+      ) {
+        throw new Error(
+          "Pickup end time must be after pickup start time."
+        );
+      }
+
+      if (
+        new Date(pickupEndAt).getTime() >
+        new Date(expiresAt).getTime()
+      ) {
+        throw new Error(
+          "Pickup deadline cannot exceed food expiry."
+        );
+      }
+
+      const latitude = Number(profile.location.latitude);
+      const longitude = Number(profile.location.longitude);
+
+      if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+      ) {
+        throw new Error(
+          "Restaurant coordinates are invalid."
+        );
+      }
+
+      const payload = {
+        title: donationForm.title.trim(),
+        description: donationForm.description.trim(),
+        foodType: donationForm.foodType,
+        quantity,
+        quantityUnit: donationForm.quantityUnit,
+        preparedAt,
+        pickupStartAt,
+        pickupEndAt,
+        expiresAt,
+        pickupAddress:
+          donationForm.pickupAddress.trim() ||
+          profile.address,
+        pickupLocation: {
+          latitude,
+          longitude,
+        },
+      };
+
+      if (!payload.title) {
+        throw new Error("Food name is required.");
+      }
+
+      if (!payload.pickupAddress) {
+        throw new Error("Pickup address is required.");
+      }
+
+      setPublishingDonation(true);
+
+      const response = await api.createFoodListing(payload);
+
+      if (!response?.success || !response?.data?.listing?.id) {
+        throw new Error(
+          "Food listing was not confirmed by the server."
+        );
+      }
+
+      const refreshed = await api.getMyFoodListings();
+
+      if (refreshed?.success) {
+        setDonationsList(refreshed.data?.listings || []);
+      }
+
+      setDonationForm({
+        title: "",
+        description: "",
+        foodType: "veg",
+        quantity: "",
+        quantityUnit: "meals",
+        preparedAt: "",
+        pickupStartAt: "",
+        pickupEndAt: "",
+        expiresAt: "",
+        pickupAddress: "",
+        safetyConfirmed: false,
+      });
+
+      setDonationFormSuccess(
+        "Food donation published successfully."
+      );
+
+      setDonationTab("All");
+      setActiveTab("donations");
+    } catch (error) {
+      setDonationFormError(
+        error instanceof Error
+          ? error.message
+          : "Unable to publish donation."
+      );
+    } finally {
+      setPublishingDonation(false);
+    }
+  }
+
+
+  const handleLogout = () => {
+    authStorage.clearToken();
+    router.replace("/");
+    router.refresh();
+  };
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Sub-navigation states
   const [donationTab, setDonationTab] = useState('All');
+
+  const [donationForm, setDonationForm] = useState({
+    title: "",
+    description: "",
+    foodType: "veg",
+    quantity: "",
+    quantityUnit: "meals",
+    preparedAt: "",
+    pickupStartAt: "",
+    pickupEndAt: "",
+    expiresAt: "",
+    pickupAddress: "",
+    safetyConfirmed: false,
+  });
+
+  const [publishingDonation, setPublishingDonation] =
+    useState(false);
+
+  const [donationFormError, setDonationFormError] =
+    useState("");
+
+  const [donationFormSuccess, setDonationFormSuccess] =
+    useState("");
+
+  function updateDonationField(field, value) {
+    setDonationForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  }
+
   const [collabTab, setCollabTab] = useState('Active');
   const [impactTab, setImpactTab] = useState('History');
-  
+
   // Profile & Settings States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profile, setProfile] = useState({ 
-    name: 'Downtown Bakery', 
-    type: 'Bakery & Cafe',
-    status: 'Verified Donor',
-    desc: 'Artisan bakery committed to zero food waste in the community.',
-    contactName: 'Elena Rodriguez',
-    email: 'hello@downtownbakery.com',
-    phone: '+91 98765 12345',
-    address: '142 Main St, Heritage District',
-    city: 'Jaipur',
-    hours: '06:00 AM - 09:00 PM'
-  });
-  const [editForm, setEditForm] = useState(profile);
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState("");
+
+  const [editForm, setEditForm] = useState({});
 
   const [notifications, setNotifications] = useState({
     collabRequests: true,
@@ -42,11 +342,9 @@ export default function RestaurantDashboard() {
   });
 
   // Mock Data
-  const donationsList = [
-    { id: 'DON-01', food: 'Vegetable Biryani', qty: '50 meals', prepared: '7:00 PM', deadline: '8:30 PM', status: 'Awaiting Pickup', ngo: 'XYZ Foundation' },
-    { id: 'DON-02', food: '30 Meal Packets', qty: '30 meals', prepared: '1:00 PM', deadline: '3:00 PM', status: 'Completed', ngo: 'ABC Welfare' },
-    { id: 'DON-03', food: 'Fresh Produce Assortment', qty: '15 kg', prepared: 'N/A', deadline: '9:00 PM', status: 'Matching', ngo: 'Pending' }
-  ];
+  const [donationsList, setDonationsList] = useState([]);
+  const [donationsLoading, setDonationsLoading] = useState(true);
+  const [donationsError, setDonationsError] = useState("");
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -69,7 +367,7 @@ export default function RestaurantDashboard() {
       <section className="bg-forest rounded-3xl p-8 text-paper shadow-sm relative overflow-hidden">
         <div className="relative z-10">
           <p className="text-sage-light font-bold tracking-wider text-sm mb-2 uppercase">Good Evening,</p>
-          <h2 className="text-4xl font-display font-bold tracking-tight mb-2">{profile.name}</h2>
+          <h2 className="text-4xl font-display font-bold tracking-tight mb-2">{profile?.name || "Restaurant"}</h2>
           <p className="text-lg text-sage italic font-display">Good food deserves a second destination.</p>
         </div>
         <Leaf className="absolute -bottom-10 -right-10 w-64 h-64 text-forest-deep opacity-50 -rotate-12" />
@@ -97,55 +395,297 @@ export default function RestaurantDashboard() {
     </div>
   );
 
+
   const renderCreateDonation = () => (
     <div className="max-w-3xl mx-auto space-y-6 pb-20 md:pb-6">
       <div className="border-b border-line pb-4">
-        <h2 className="text-2xl font-display font-bold text-forest uppercase">Create Food Donation</h2>
-        <p className="text-sm text-ink-muted mt-1">Publish surplus food to eligible nearby partner NGOs.</p>
+        <h2 className="text-2xl font-display font-bold text-forest uppercase">
+          Create Food Donation
+        </h2>
+
+        <p className="text-sm text-ink-muted mt-1">
+          Publish surplus food to eligible nearby partner NGOs.
+        </p>
       </div>
-      <form className="space-y-8 bg-paper p-8 rounded-2xl border border-line shadow-sm">
+
+      {donationFormError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700"
+        >
+          {donationFormError}
+        </div>
+      )}
+
+      {donationFormSuccess && (
+        <div
+          role="status"
+          className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-700"
+        >
+          {donationFormSuccess}
+        </div>
+      )}
+
+      <form
+        onSubmit={handlePublishDonation}
+        className="space-y-8 bg-paper p-8 rounded-2xl border border-line shadow-sm"
+      >
+        {/* SECTION A — FOOD INFORMATION */}
         <div className="space-y-4">
-          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">A. Food Information</h3>
+          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">
+            A. Food Information
+          </h3>
+
           <div>
-            <label className="block text-sm font-bold text-ink-muted mb-1">Food Name</label>
-            <input type="text" placeholder="e.g., 50 Assorted Sandwiches" className="w-full p-3 bg-ivory border border-line rounded-xl focus:ring-2 focus:ring-forest outline-none" />
+            <label className="block text-sm font-bold text-ink-muted mb-1">
+              Food Name
+            </label>
+
+            <input
+              type="text"
+              required
+              maxLength={150}
+              placeholder="e.g., Fresh Vegetarian Meals"
+              value={donationForm.title}
+              onChange={(event) =>
+                updateDonationField("title", event.target.value)
+              }
+              className="w-full p-3 bg-ivory border border-line rounded-xl focus:ring-2 focus:ring-forest outline-none"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-bold text-ink-muted mb-1">Category</label>
-              <select className="w-full p-3 bg-ivory border border-line rounded-xl focus:ring-2 focus:ring-forest outline-none"><option>Vegetarian</option><option>Non-Vegetarian</option><option>Vegan</option><option>Baked Goods</option></select>
+              <label className="block text-sm font-bold text-ink-muted mb-1">
+                Food Type
+              </label>
+
+              <select
+                value={donationForm.foodType}
+                onChange={(event) =>
+                  updateDonationField(
+                    "foodType",
+                    event.target.value
+                  )
+                }
+                className="w-full p-3 bg-ivory border border-line rounded-xl outline-none"
+              >
+                <option value="veg">Vegetarian</option>
+                <option value="non_veg">Non-Vegetarian</option>
+                <option value="vegan">Vegan</option>
+                <option value="mixed">Mixed</option>
+              </select>
             </div>
+
             <div>
-              <label className="block text-sm font-bold text-ink-muted mb-1">Quantity</label>
-              <input type="text" placeholder="e.g., 50 portions" className="w-full p-3 bg-ivory border border-line rounded-xl focus:ring-2 focus:ring-forest outline-none" />
+              <label className="block text-sm font-bold text-ink-muted mb-1">
+                Quantity
+              </label>
+
+              <input
+                type="number"
+                required
+                min="0.01"
+                step="any"
+                placeholder="e.g., 25"
+                value={donationForm.quantity}
+                onChange={(event) =>
+                  updateDonationField(
+                    "quantity",
+                    event.target.value
+                  )
+                }
+                className="w-full p-3 bg-ivory border border-line rounded-xl outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-ink-muted mb-1">
+                Unit
+              </label>
+
+              <select
+                value={donationForm.quantityUnit}
+                onChange={(event) =>
+                  updateDonationField(
+                    "quantityUnit",
+                    event.target.value
+                  )
+                }
+                className="w-full p-3 bg-ivory border border-line rounded-xl outline-none"
+              >
+                <option value="meals">Meals</option>
+                <option value="kg">Kilograms</option>
+                <option value="portions">Portions</option>
+                <option value="packets">Packets</option>
+              </select>
             </div>
           </div>
+
           <div>
-            <label className="block text-sm font-bold text-ink-muted mb-1">Additional Notes</label>
-            <textarea rows="2" placeholder="Allergens, special handling..." className="w-full p-3 bg-ivory border border-line rounded-xl focus:ring-2 focus:ring-forest outline-none resize-none"></textarea>
+            <label className="block text-sm font-bold text-ink-muted mb-1">
+              Additional Notes
+            </label>
+
+            <textarea
+              rows={3}
+              placeholder="Food description, packaging, allergens, handling instructions..."
+              value={donationForm.description}
+              onChange={(event) =>
+                updateDonationField(
+                  "description",
+                  event.target.value
+                )
+              }
+              className="w-full p-3 bg-ivory border border-line rounded-xl outline-none resize-none"
+            />
           </div>
         </div>
+
+        {/* SECTION B — PREPARATION AND PICKUP TIMES */}
         <div className="space-y-4">
-          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">B. Preparation & Timing</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div><label className="block text-sm font-bold text-ink-muted mb-1">Prepared At</label><input type="time" className="w-full p-3 bg-ivory border border-line rounded-xl outline-none" /></div>
-            <div><label className="block text-sm font-bold text-ink-muted mb-1">Pickup Deadline</label><input type="time" className="w-full p-3 bg-ivory border border-line rounded-xl outline-none" /></div>
-            <div><label className="block text-sm font-bold text-ink-muted mb-1">Safe Until</label><input type="time" className="w-full p-3 bg-ivory border border-line rounded-xl outline-none" /></div>
+          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">
+            B. Preparation &amp; Timing
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              {
+                field: "preparedAt",
+                label: "Prepared At",
+              },
+              {
+                field: "pickupStartAt",
+                label: "Pickup Start",
+              },
+              {
+                field: "pickupEndAt",
+                label: "Pickup Deadline",
+              },
+              {
+                field: "expiresAt",
+                label: "Safe Until",
+              },
+            ].map((item) => (
+              <div key={item.field}>
+                <label className="block text-sm font-bold text-ink-muted mb-1">
+                  {item.label}
+                </label>
+
+                <input
+                  type="datetime-local"
+                  required
+                  value={donationForm[item.field]}
+                  onChange={(event) =>
+                    updateDonationField(
+                      item.field,
+                      event.target.value
+                    )
+                  }
+                  className="w-full p-3 bg-ivory border border-line rounded-xl outline-none"
+                />
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-ink-muted">
+            Enter your local date and time. The application
+            automatically converts it to a timezone-aware
+            timestamp before submission.
+          </p>
+        </div>
+
+        {/* SECTION C — PICKUP LOCATION */}
+        <div className="space-y-4">
+          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">
+            C. Pickup Location
+          </h3>
+
+          <div>
+            <label className="block text-sm font-bold text-ink-muted mb-1">
+              Pickup Address
+            </label>
+
+            <input
+              type="text"
+              value={donationForm.pickupAddress}
+              onChange={(event) =>
+                updateDonationField(
+                  "pickupAddress",
+                  event.target.value
+                )
+              }
+              placeholder={
+                profile?.address || "Restaurant pickup address"
+              }
+              className="w-full p-3 bg-ivory border border-line rounded-xl outline-none"
+            />
+          </div>
+
+          <div className="bg-sage-light/30 border border-sage-light rounded-xl p-4">
+            <p className="text-sm font-bold text-forest">
+              Registered Restaurant Coordinates
+            </p>
+
+            <p className="text-xs text-ink-muted mt-1">
+              Latitude:{" "}
+              {profile?.location?.latitude ?? "Unavailable"}
+            </p>
+
+            <p className="text-xs text-ink-muted">
+              Longitude:{" "}
+              {profile?.location?.longitude ?? "Unavailable"}
+            </p>
+
+            <p className="text-xs text-ink-muted mt-2">
+              These coordinates are used for PostGIS food
+              discovery and smart NGO matching.
+            </p>
           </div>
         </div>
+
+        {/* SECTION D — SAFETY */}
         <div className="space-y-4">
-          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">C. Safety & Packaging</h3>
+          <h3 className="font-bold text-charcoal border-b border-line pb-2 uppercase text-sm tracking-wider">
+            D. Safety &amp; Packaging
+          </h3>
+
           <label className="flex items-start gap-3 p-4 bg-sage-light/30 border border-sage-light rounded-xl cursor-pointer">
-            <input type="checkbox" className="mt-1 w-4 h-4 accent-forest" />
-            <span className="text-sm text-charcoal"><strong>Safety Declaration:</strong> I confirm this food is suitable for donation, has been handled appropriately, and has not been served to customers.</span>
+            <input
+              type="checkbox"
+              required
+              checked={donationForm.safetyConfirmed}
+              onChange={(event) =>
+                updateDonationField(
+                  "safetyConfirmed",
+                  event.target.checked
+                )
+              }
+              className="mt-1 w-4 h-4 accent-forest"
+            />
+
+            <span className="text-sm text-charcoal">
+              <strong>Safety Declaration:</strong> I confirm
+              that this food is suitable for donation,
+              has been handled appropriately, and has
+              not been served to customers.
+            </span>
           </label>
         </div>
-        <button type="button" onClick={() => setActiveTab('donations')} className="w-full py-4 bg-forest hover:bg-forest-deep text-paper font-display font-bold uppercase tracking-wider rounded-xl shadow-sm transition-colors">
-          Publish Donation
+
+        <button
+          type="submit"
+          disabled={publishingDonation}
+          className="w-full py-4 bg-forest hover:bg-forest-deep text-paper font-display font-bold uppercase tracking-wider rounded-xl shadow-sm transition-colors disabled:opacity-50"
+        >
+          {publishingDonation
+            ? "Publishing Donation..."
+            : "Publish Donation"}
         </button>
       </form>
     </div>
   );
+
 
   const renderMyDonations = () => (
     <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-6">
@@ -154,43 +694,65 @@ export default function RestaurantDashboard() {
         <p className="text-sm text-ink-muted mt-1">Manage and track your food donations.</p>
       </div>
 
+
       <div className="flex flex-wrap gap-2 mb-6">
-        {['All', 'Matching', 'Reserved', 'Awaiting Pickup', 'Picked Up', 'Completed'].map(tab => (
-          <button 
-            key={tab} onClick={() => setDonationTab(tab)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${donationTab === tab ? 'bg-forest text-paper shadow-sm' : 'bg-ivory border border-line text-ink-muted hover:text-charcoal'}`}
+        {[
+          "All",
+          "Available",
+          "Reserved",
+          "Picked Up",
+          "Completed",
+          "Cancelled",
+          "Expired",
+        ].map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setDonationTab(tab)}
+            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${donationTab === tab
+              ? "bg-forest text-paper shadow-sm"
+              : "bg-ivory border border-line text-ink-muted hover:text-charcoal"
+              }`}
           >
             {tab}
           </button>
         ))}
       </div>
 
+
       <div className="space-y-4">
-        {donationsList.filter(d => donationTab === 'All' || d.status.includes(donationTab)).map((don, i) => (
-          <div key={i} className="bg-paper border border-line rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h4 className="font-display font-bold text-lg text-charcoal uppercase">Food: {don.food}</h4>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                  ${don.status === 'Completed' ? 'bg-st-fresh-bg text-st-fresh-fg' : 
-                    don.status === 'Awaiting Pickup' ? 'bg-st-soon-bg text-st-soon-fg' : 
-                    'bg-ivory border border-line text-ink-muted'}`}
-                >
-                  Status: {don.status}
-                </span>
+        {donationsList
+          .map(normalizeDonation)
+          .filter(
+            (don) =>
+              donationTab === "All" ||
+              don.status === donationTab
+          )
+          .map((don) => (
+            <div key={don.id} className="bg-paper border border-line rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h4 className="font-display font-bold text-lg text-charcoal uppercase">Food: {don.food}</h4>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
+                  ${don.status === 'Completed' ? 'bg-st-fresh-bg text-st-fresh-fg' :
+                      don.status === 'Awaiting Pickup' ? 'bg-st-soon-bg text-st-soon-fg' :
+                        'bg-ivory border border-line text-ink-muted'}`}
+                  >
+                    Status: {don.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                  <div><p className="text-ink-muted text-xs font-bold">Quantity</p><p className="font-medium text-charcoal">{don.qty}</p></div>
+                  <div><p className="text-ink-muted text-xs font-bold">Prepared</p><p className="font-medium text-charcoal">{don.prepared}</p></div>
+                  <div><p className="text-ink-muted text-xs font-bold">Deadline</p><p className="font-medium text-charcoal flex items-center gap-1"><Clock className="w-3 h-3 text-terracotta-deep" /> {don.deadline}</p></div>
+                  <div><p className="text-ink-muted text-xs font-bold">Assigned NGO</p><p className="font-medium text-forest">{don.ngo}</p></div>
+                </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                <div><p className="text-ink-muted text-xs font-bold">Quantity</p><p className="font-medium text-charcoal">{don.qty}</p></div>
-                <div><p className="text-ink-muted text-xs font-bold">Prepared</p><p className="font-medium text-charcoal">{don.prepared}</p></div>
-                <div><p className="text-ink-muted text-xs font-bold">Deadline</p><p className="font-medium text-charcoal flex items-center gap-1"><Clock className="w-3 h-3 text-terracotta-deep" /> {don.deadline}</p></div>
-                <div><p className="text-ink-muted text-xs font-bold">Assigned NGO</p><p className="font-medium text-forest">{don.ngo}</p></div>
+              <div className="bg-ivory px-6 py-3 border-t border-line">
+                <button className="text-sm font-bold text-forest hover:text-forest-deep flex items-center gap-2">View Details <ChevronRight className="w-4 h-4" /></button>
               </div>
             </div>
-            <div className="bg-ivory px-6 py-3 border-t border-line">
-              <button className="text-sm font-bold text-forest hover:text-forest-deep flex items-center gap-2">View Details <ChevronRight className="w-4 h-4" /></button>
-            </div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
   );
@@ -232,7 +794,12 @@ export default function RestaurantDashboard() {
             <span className="inline-block bg-st-soon-bg text-st-soon-fg text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider mb-4">New Request</span>
             <div className="space-y-2 text-sm mb-6">
               <p><span className="text-ink-muted font-bold">Proposed Frequency:</span> Weekly</p>
-              <p><span className="text-ink-muted font-bold">Message:</span> "We'd love to partner to rescue your weekend bakery surplus."</p>
+              <p>
+                <span className="text-ink-muted font-bold">
+                  Message:
+                </span>{" "}
+                &quot;We&apos;d love to partner to rescue your weekend bakery surplus.&quot;
+              </p>
             </div>
             <div className="flex gap-3">
               <button className="flex-1 py-2 bg-ivory text-charcoal font-bold text-sm border border-line rounded-lg">View</button>
@@ -302,7 +869,7 @@ export default function RestaurantDashboard() {
         <div className="space-y-4">
           <h3 className="font-bold text-charcoal uppercase text-xs tracking-wider">Recent Completed Donations</h3>
           <div className="bg-paper border border-line rounded-2xl shadow-sm overflow-hidden divide-y divide-line">
-            {[1,2,3].map(i => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="p-5 flex justify-between items-center hover:bg-ivory transition-colors">
                 <div>
                   <h4 className="font-bold text-charcoal">Vegetable Biryani ({50 * i} meals)</h4>
@@ -372,9 +939,12 @@ export default function RestaurantDashboard() {
           <div className="border-b border-line pb-4 last:border-0 last:pb-0">
             <div className="flex justify-between items-start mb-2">
               <h5 className="font-bold text-charcoal uppercase">XYZ Foundation</h5>
-              <div className="flex text-gold"><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/><Star className="w-4 h-4 fill-current"/></div>
+              <div className="flex text-gold"><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /></div>
             </div>
-            <p className="text-sm text-ink-muted italic">"Food is always packed perfectly in the containers and ready right on time. Great partner!"</p>
+            <p className="text-sm text-ink-muted italic">
+              &quot;Food is always packed perfectly in the containers and
+              ready right on time. Great partner!&quot;
+            </p>
             <p className="text-[10px] text-ink-muted font-bold mt-2 uppercase">Oct 28 • Vegetable Biryani</p>
           </div>
         </div>
@@ -395,20 +965,20 @@ export default function RestaurantDashboard() {
           </div>
           <div className="bg-paper p-6 rounded-2xl border border-line shadow-sm space-y-4">
             <h3 className="font-bold text-charcoal uppercase text-xs tracking-wider border-b border-line pb-2">Business Information</h3>
-            <div><label className="block text-xs font-bold text-ink-muted mb-1">Restaurant Name</label><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
-            <div><label className="block text-xs font-bold text-ink-muted mb-1">Description</label><textarea rows="3" value={editForm.desc} onChange={e => setEditForm({...editForm, desc: e.target.value})} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest resize-none"></textarea></div>
+            <div><label className="block text-xs font-bold text-ink-muted mb-1">Restaurant Name</label><input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
+            <div><label className="block text-xs font-bold text-ink-muted mb-1">Description</label><textarea rows="3" value={editForm.desc} onChange={e => setEditForm({ ...editForm, desc: e.target.value })} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest resize-none"></textarea></div>
           </div>
           <div className="bg-paper p-6 rounded-2xl border border-line shadow-sm space-y-4">
             <h3 className="font-bold text-charcoal uppercase text-xs tracking-wider border-b border-line pb-2">Contact Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-xs font-bold text-ink-muted mb-1">Contact Person</label><input type="text" value={editForm.contactName} onChange={e => setEditForm({...editForm, contactName: e.target.value})} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
-              <div><label className="block text-xs font-bold text-ink-muted mb-1">Phone</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
+              <div><label className="block text-xs font-bold text-ink-muted mb-1">Contact Person</label><input type="text" value={editForm.contactName} onChange={e => setEditForm({ ...editForm, contactName: e.target.value })} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
+              <div><label className="block text-xs font-bold text-ink-muted mb-1">Phone</label><input type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
             </div>
           </div>
           <div className="bg-paper p-6 rounded-2xl border border-line shadow-sm space-y-4">
             <h3 className="font-bold text-charcoal uppercase text-xs tracking-wider border-b border-line pb-2">Location & Operations</h3>
-            <div><label className="block text-xs font-bold text-ink-muted mb-1">Full Address</label><input type="text" value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
-            <div><label className="block text-xs font-bold text-ink-muted mb-1">Operating Hours</label><input type="text" value={editForm.hours} onChange={e => setEditForm({...editForm, hours: e.target.value})} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
+            <div><label className="block text-xs font-bold text-ink-muted mb-1">Full Address</label><input type="text" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
+            <div><label className="block text-xs font-bold text-ink-muted mb-1">Operating Hours</label><input type="text" value={editForm.hours} onChange={e => setEditForm({ ...editForm, hours: e.target.value })} className="w-full p-2.5 bg-ivory border border-line rounded-lg text-sm outline-none focus:border-forest" /></div>
           </div>
         </form>
       );
@@ -422,7 +992,7 @@ export default function RestaurantDashboard() {
         <div className="bg-paper p-8 rounded-2xl border border-line shadow-sm flex items-center gap-6">
           <div className="w-20 h-20 rounded-full bg-forest text-paper flex items-center justify-center font-display font-bold text-2xl shrink-0">DB</div>
           <div>
-            <div className="flex items-center gap-3 mb-1"><h3 className="text-2xl font-display font-bold text-charcoal uppercase">{profile.name}</h3><span className="px-2 py-1 bg-st-fresh-bg text-st-fresh-fg text-[10px] font-bold uppercase rounded-md flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> {profile.status}</span></div>
+            <div className="flex items-center gap-3 mb-1"><h3 className="text-2xl font-display font-bold text-charcoal uppercase">{profile?.name || "Restaurant"}</h3><span className="px-2 py-1 bg-st-fresh-bg text-st-fresh-fg text-[10px] font-bold uppercase rounded-md flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> {profile.status}</span></div>
             <p className="text-sm font-bold text-forest mb-2">{profile.type}</p>
             <p className="text-sm text-ink-muted">{profile.desc}</p>
           </div>
@@ -450,11 +1020,11 @@ export default function RestaurantDashboard() {
   };
 
   const renderSettings = () => {
-    const toggleNotif = (key) => setNotifications(prev => ({...prev, [key]: !prev[key]}));
+    const toggleNotif = (key) => setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
     return (
       <div className="max-w-3xl mx-auto space-y-6 pb-20 md:pb-6">
         <div className="border-b border-line pb-4"><h2 className="text-2xl font-display font-bold text-forest uppercase">Settings</h2></div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-6">
             <div className="bg-paper p-6 rounded-2xl border border-line shadow-sm space-y-4">
@@ -484,9 +1054,20 @@ export default function RestaurantDashboard() {
                 </div>
               ))}
             </div>
+
             <div className="bg-st-error-bg/30 p-6 rounded-2xl border border-st-error-bg shadow-sm space-y-4">
-              <div className="flex items-center gap-2 font-bold text-st-error-fg uppercase tracking-wider text-xs border-b border-st-error-bg/50 pb-2">Account Management</div>
-              <button onClick={() => window.location.href = '/'} className="w-full flex items-center gap-2 text-sm font-bold text-charcoal hover:text-st-error-fg transition-colors py-1"><LogOut className="w-4 h-4" /> Log Out</button>
+              <div className="flex items-center gap-2 font-bold text-st-error-fg uppercase tracking-wider text-xs border-b border-st-error-bg/50 pb-2">
+                Account Management
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 text-sm font-bold text-charcoal hover:text-st-error-fg transition-colors py-1"
+              >
+                <LogOut className="w-4 h-4" />
+                Log Out
+              </button>
             </div>
           </div>
         </div>
@@ -494,12 +1075,128 @@ export default function RestaurantDashboard() {
     );
   };
 
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadRestaurantData() {
+      const [organizationResult, foodResult] =
+        await Promise.allSettled([
+          api.getMyOrganization(),
+          api.getMyFoodListings(),
+        ]);
+
+      if (!active) return;
+
+      if (
+        organizationResult.status === "fulfilled" &&
+        organizationResult.value?.success
+      ) {
+        const organization =
+          organizationResult.value.data?.organization;
+
+        if (organization) {
+          const normalized = {
+            ...organization,
+            type: organization.organizationType,
+            status:
+              organization.isVerified &&
+                organization.verificationStatus === "approved"
+                ? "Verified Donor"
+                : organization.verificationStatus || "Pending",
+            desc: organization.description || "",
+            phone: organization.contactPhone || "",
+            city: "",
+            hours: "",
+            contactName: "",
+            email: "",
+          };
+
+          setProfile(normalized);
+          setEditForm(normalized);
+          setProfileError("");
+        } else {
+          setProfileError("Organization profile not found");
+        }
+      } else {
+        setProfileError(
+          organizationResult.status === "rejected"
+            ? organizationResult.reason?.message ||
+            "Unable to load restaurant profile"
+            : "Unable to load restaurant profile"
+        );
+      }
+
+      if (
+        foodResult.status === "fulfilled" &&
+        foodResult.value?.success
+      ) {
+        setDonationsList(
+          foodResult.value.data?.listings || []
+        );
+        setDonationsError("");
+      } else {
+        setDonationsError(
+          foodResult.status === "rejected"
+            ? foodResult.reason?.message ||
+            "Unable to load food listings"
+            : "Unable to load food listings"
+        );
+      }
+
+      setProfileLoading(false);
+      setDonationsLoading(false);
+    }
+
+    loadRestaurantData();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ivory">
+        <p className="text-lg font-bold text-forest">
+          Loading restaurant dashboard...
+        </p>
+      </div>
+    );
+  }
+
+  if (profileError || !profile) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-ivory p-6 text-center">
+        <h2 className="text-xl font-bold text-forest">
+          Restaurant Profile Unavailable
+        </h2>
+
+        <p className="mt-3 text-sm text-ink-muted">
+          {profileError || "No restaurant organization found."}
+        </p>
+
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-5 rounded-xl bg-forest px-5 py-3 text-paper font-bold"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+
+
   // ---------------------------------------------------------
   // MAIN RENDER (Mobile-First Layout)
   // ---------------------------------------------------------
   return (
     <div className="h-screen bg-ivory flex flex-col md:flex-row text-charcoal font-body overflow-hidden">
-      
+
       {/* Mobile Header */}
       <header className="md:hidden bg-paper border-b border-line px-4 py-3 flex items-center justify-between z-30 shrink-0">
         <div className="flex items-center gap-2">
@@ -519,10 +1216,10 @@ export default function RestaurantDashboard() {
           <button onClick={() => setIsMobileMenuOpen(false)} className="text-ink-muted p-2"><XCircle className="w-6 h-6" /></button>
         </div>
         <div className="px-6 py-4 text-[10px] font-bold text-ink-muted uppercase tracking-wider shrink-0">Food Provider Portal</div>
-        
+
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto pb-6">
           {sidebarItems.map((item) => (
-            <button 
+            <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all font-bold text-sm ${activeTab === item.id ? 'bg-sage-light text-forest shadow-sm' : 'text-ink-muted hover:bg-ivory hover:text-forest'}`}
@@ -543,8 +1240,15 @@ export default function RestaurantDashboard() {
           </button>
           <div className="flex items-center gap-3 pl-6 border-l border-line cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('profile')}>
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-forest leading-tight">{profile.name}</p>
-              <p className="text-[10px] uppercase tracking-wider text-ink-muted font-bold">{profile.type}</p>
+
+              <p className="text-sm font-bold text-forest leading-tight">
+                {profile?.name || "Restaurant"}
+              </p>
+
+              <p className="text-[10px] uppercase tracking-wider text-ink-muted font-bold">
+                {profile?.type || "Food Provider"}
+              </p>
+
             </div>
             <div className="w-10 h-10 bg-forest text-paper rounded-full flex items-center justify-center font-display font-bold">DB</div>
           </div>
@@ -561,7 +1265,7 @@ export default function RestaurantDashboard() {
         {activeTab === 'profile' && renderProfile()}
         {activeTab === 'settings' && renderSettings()}
       </main>
-      
+
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-paper border-t border-line pb-safe flex justify-around p-3 z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         {[
