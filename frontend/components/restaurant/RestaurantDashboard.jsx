@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useEffectEvent, useState } from "react";
 import { api } from "../../lib/api/client";
 
 import {
@@ -8,20 +8,17 @@ import {
   PlusCircle,
   List as ListIcon,
   Users,
-  PackageOpen,
   BarChart3,
-  Star,
   User as UserIcon,
   Settings,
   Bell,
   Leaf,
   Clock,
-  MapPin,
   CheckCircle2,
   ChevronRight,
   Menu,
   XCircle,
-  ShieldCheck,
+  CircleUserRound,
   Edit3,
   Save,
   X,
@@ -108,6 +105,10 @@ function getPickupStatusLabel(status) {
   );
 }
 
+function currentTimestamp() {
+  return Date.now();
+}
+
 export default function RestaurantDashboard() {
 
   const router = useRouter();
@@ -128,14 +129,6 @@ export default function RestaurantDashboard() {
         );
       }
 
-      if (
-        !profile.isVerified ||
-        profile.verificationStatus !== "approved"
-      ) {
-        throw new Error(
-          "Your restaurant must be verified before publishing food."
-        );
-      }
 
       if (!profile.location) {
         throw new Error(
@@ -152,11 +145,11 @@ export default function RestaurantDashboard() {
       const quantity = Number(donationForm.quantity);
 
       if (
-        !Number.isFinite(quantity) ||
+        !Number.isInteger(quantity) ||
         quantity <= 0
       ) {
         throw new Error(
-          "Quantity must be a positive number."
+          "Quantity must be a positive whole number."
         );
       }
 
@@ -176,7 +169,7 @@ export default function RestaurantDashboard() {
         donationForm.expiresAt
       );
 
-      const now = Date.now();
+      const now = currentTimestamp();
 
       if (new Date(preparedAt).getTime() > now) {
         throw new Error(
@@ -384,7 +377,7 @@ export default function RestaurantDashboard() {
     urgentAlerts: true
   });
 
-  // Mock Data
+  // Data loaded from the API
   const [donationsList, setDonationsList] = useState([]);
 
   const [incomingRequests, setIncomingRequests] = useState([]);
@@ -400,7 +393,7 @@ export default function RestaurantDashboard() {
 
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const [donationsLoading, setDonationsLoading] = useState(true);
+  const [, setDonationsLoading] = useState(true);
   const [donationsError, setDonationsError] = useState("");
 
   const sidebarItems = [
@@ -862,8 +855,8 @@ export default function RestaurantDashboard() {
               <input
                 type="number"
                 required
-                min="0.01"
-                step="any"
+                min="1"
+                step="1"
                 placeholder="e.g., 25"
                 value={donationForm.quantity}
                 onChange={(event) =>
@@ -1467,95 +1460,59 @@ export default function RestaurantDashboard() {
   };
 
 
-  const renderContainers = () => (
-    <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-6">
-      <div className="border-b border-line pb-4">
-        <h2 className="text-2xl font-display font-bold text-forest uppercase">Container Management</h2>
-      </div>
+  const renderImpact = () => {
+    const completed = effectiveDonations.filter(
+      (listing) => listing.status === "completed"
+    );
+    const completedKg = completed
+      .filter((listing) => listing.quantityUnit === "kg")
+      .reduce((sum, listing) => sum + Number(listing.quantity || 0), 0);
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-paper p-6 rounded-2xl border border-line shadow-sm text-center">
-          <p className="text-xs font-bold text-ink-muted uppercase tracking-wider mb-1">Total</p>
-          <p className="text-3xl font-display font-bold text-forest">100</p>
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-6">
+        <div className="border-b border-line pb-4">
+          <h2 className="text-2xl font-display font-bold text-forest uppercase">Rescue History &amp; Impact</h2>
+          <p className="text-sm text-ink-muted mt-1">Based on your saved donation records.</p>
         </div>
-        <div className="bg-st-fresh-bg p-6 rounded-2xl border border-st-fresh-fg/20 shadow-sm text-center">
-          <p className="text-xs font-bold text-st-fresh-fg uppercase tracking-wider mb-1">Available</p>
-          <p className="text-3xl font-display font-bold text-forest">60</p>
+        <div className="flex bg-line/30 p-1 rounded-xl mb-6 max-w-xs">
+          {["History", "Dashboard"].map((tab) => (
+            <button key={tab} type="button" onClick={() => setImpactTab(tab)}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase ${impactTab === tab ? "bg-paper shadow-sm text-forest" : "text-ink-muted hover:text-charcoal"}`}>
+              {tab}
+            </button>
+          ))}
         </div>
-        <div className="bg-st-soon-bg p-6 rounded-2xl border border-st-soon-fg/20 shadow-sm text-center">
-          <p className="text-xs font-bold text-st-soon-fg uppercase tracking-wider mb-1">In Circulation</p>
-          <p className="text-3xl font-display font-bold text-terracotta-deep">40</p>
-        </div>
-      </div>
-
-      <div className="bg-paper border border-line rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-line bg-ivory"><h4 className="font-bold text-charcoal uppercase tracking-wider text-xs">Partner Container Inventory</h4></div>
-        <div className="p-6">
-          <h4 className="font-display font-bold text-lg text-charcoal mb-4 uppercase">XYZ Foundation</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
-            <div><p className="text-ink-muted text-xs font-bold">Assigned</p><p className="font-medium text-charcoal">50</p></div>
-            <div><p className="text-ink-muted text-xs font-bold">Clean/Available</p><p className="font-medium text-forest">30</p></div>
-            <div><p className="text-ink-muted text-xs font-bold">In Circulation</p><p className="font-medium text-terracotta-deep">20</p></div>
-            <div><p className="text-ink-muted text-xs font-bold">Return Schedule</p><p className="font-medium text-charcoal">31 October</p></div>
-          </div>
-          <button className="py-2 px-4 bg-ivory text-forest font-bold text-sm border border-line rounded-lg hover:bg-sage-light">View Details</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderImpact = () => (
-    <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-6">
-      <div className="border-b border-line pb-4">
-        <h2 className="text-2xl font-display font-bold text-forest uppercase">Rescue History & Impact</h2>
-        <p className="text-sm text-ink-muted mt-1">Track your contribution to food rescue.</p>
-      </div>
-
-      <div className="flex bg-line/30 p-1 rounded-xl mb-6 max-w-xs">
-        {['History', 'Dashboard'].map(tab => (
-          <button key={tab} onClick={() => setImpactTab(tab)} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${impactTab === tab ? 'bg-paper shadow-sm text-forest' : 'text-ink-muted hover:text-charcoal'}`}>
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {impactTab === 'History' ? (
-        <div className="space-y-4">
-          <h3 className="font-bold text-charcoal uppercase text-xs tracking-wider">Recent Completed Donations</h3>
-          <div className="bg-paper border border-line rounded-2xl shadow-sm overflow-hidden divide-y divide-line">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="p-5 flex justify-between items-center hover:bg-ivory transition-colors">
+        {impactTab === "History" ? (
+          <div className="bg-paper border border-line rounded-2xl divide-y divide-line">
+            {completed.length === 0 ? (
+              <p className="p-6 text-sm text-ink-muted">No completed donations yet.</p>
+            ) : completed.map((listing) => (
+              <div key={listing.id} className="p-5 flex justify-between gap-3 items-center">
                 <div>
-                  <h4 className="font-bold text-charcoal">Vegetable Biryani ({50 * i} meals)</h4>
-                  <p className="text-xs text-ink-muted mt-1">Oct {30 - i} • NGO: Hope Foundation</p>
+                  <p className="font-bold text-charcoal">{listing.title}</p>
+                  <p className="text-xs text-ink-muted">{listing.quantity} {listing.quantityUnit} · {formatDateTime(listing.updatedAt)}</p>
                 </div>
-                <span className="flex items-center gap-1 text-st-fresh-fg text-xs font-bold bg-st-fresh-bg px-2 py-1 rounded-full"><CheckCircle2 className="w-3 h-3" /> Completed</span>
+                <span className="text-xs font-bold text-st-fresh-fg">Completed</span>
               </div>
             ))}
           </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-forest p-8 rounded-3xl text-paper space-y-6">
-            <h3 className="font-display font-bold text-sage-light text-lg">Overall Impact</h3>
-            <div><p className="text-sm font-bold text-sage mb-1 uppercase">Meals Rescued</p><p className="text-5xl font-display font-bold">1,240</p></div>
-            <div><p className="text-sm font-bold text-sage mb-1 uppercase">Food Collected (kg)</p><p className="text-3xl font-display font-bold">620</p></div>
-            <div><p className="text-sm font-bold text-sage mb-1 uppercase">Successful Rescues</p><p className="text-3xl font-display font-bold">86</p></div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { label: "Completed Donations", value: completed.length },
+              { label: "Meals Rescued", value: completedMeals },
+              { label: "Food Rescued (kg)", value: completedKg },
+            ].map((item) => (
+              <div key={item.label} className="bg-paper border border-line rounded-2xl p-6">
+                <p className="text-xs font-bold text-ink-muted uppercase">{item.label}</p>
+                <p className="mt-3 text-3xl font-bold text-forest">{item.value}</p>
+              </div>
+            ))}
           </div>
-          <div className="bg-paper p-6 rounded-3xl border border-line shadow-sm flex flex-col justify-center">
-            <h3 className="font-display font-bold text-charcoal text-lg mb-4">Estimated Environmental Impact</h3>
-            <div className="bg-sage-light p-6 rounded-2xl text-center">
-              <Leaf className="w-8 h-8 text-forest mx-auto mb-2" />
-              <p className="text-sm font-bold text-forest uppercase mb-1">CO₂e Avoided</p>
-              <p className="text-4xl font-display font-bold text-forest">1,550 kg</p>
-              <p className="text-[10px] text-forest/70 mt-2">*Estimates based on standard food waste emissions.</p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
+        )}
+      </div>
+    );
+  };
 
   const renderProfile = () => {
     if (isEditingProfile) {
@@ -1597,7 +1554,7 @@ export default function RestaurantDashboard() {
         <div className="bg-paper p-8 rounded-2xl border border-line shadow-sm flex items-center gap-6">
           <div className="w-20 h-20 rounded-full bg-forest text-paper flex items-center justify-center font-display font-bold text-2xl shrink-0">DB</div>
           <div>
-            <div className="flex items-center gap-3 mb-1"><h3 className="text-2xl font-display font-bold text-charcoal uppercase">{profile?.name || "Restaurant"}</h3><span className="px-2 py-1 bg-st-fresh-bg text-st-fresh-fg text-[10px] font-bold uppercase rounded-md flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> {profile.status}</span></div>
+            <div className="flex items-center gap-3 mb-1"><h3 className="text-2xl font-display font-bold text-charcoal uppercase">{profile?.name || "Restaurant"}</h3><span className="px-2 py-1 bg-st-fresh-bg text-st-fresh-fg text-[10px] font-bold uppercase rounded-md flex items-center gap-1"><CircleUserRound className="w-3 h-3" /> {profile.status}</span></div>
             <p className="text-sm font-bold text-forest mb-2">{profile.type}</p>
             <p className="text-sm text-ink-muted">{profile.desc}</p>
           </div>
@@ -1681,6 +1638,12 @@ export default function RestaurantDashboard() {
   };
 
 
+  const refreshOnFocus = useEffectEvent(() => {
+    void refreshDonorData().catch((error) => {
+      console.error("Unable to refresh donor data:", error);
+    });
+  });
+
   useEffect(() => {
     let active = true;
 
@@ -1701,14 +1664,15 @@ export default function RestaurantDashboard() {
           organizationResult.value.data?.organization;
 
         if (organization) {
+
           const normalized = {
             ...organization,
             type: organization.organizationType,
-            status:
-              organization.isVerified &&
-                organization.verificationStatus === "approved"
-                ? "Verified Donor"
-                : organization.verificationStatus || "Pending",
+
+            // Account is usable without manual approval.
+            // This is an account state, not identity verification.
+            status: "Active Donor",
+
             desc: organization.description || "",
             phone: organization.contactPhone || "",
             city: "",
@@ -1716,6 +1680,7 @@ export default function RestaurantDashboard() {
             contactName: "",
             email: "",
           };
+
 
           setProfile(normalized);
           setEditForm(normalized);
@@ -1756,10 +1721,10 @@ export default function RestaurantDashboard() {
     loadRestaurantData();
     // Fetch pickup statuses on initial load and when the user returns to the tab.
     Promise.resolve().then(() => {
-      if (active) refreshIncomingRequests().catch(() => {});
+      if (active) refreshIncomingRequests().catch(() => { });
     });
     const onFocus = () => {
-      if (active) refreshDonorData().catch(() => {});
+      if (active) refreshOnFocus();
     };
     window.addEventListener("focus", onFocus);
 
@@ -1853,7 +1818,7 @@ export default function RestaurantDashboard() {
                 }
 
                 if (item.id === "collaborations" || item.id === "dashboard") {
-                  refreshDonorData().catch(() => {});
+                  refreshDonorData().catch(() => { });
                 }
               }}
 
@@ -1908,11 +1873,11 @@ export default function RestaurantDashboard() {
           { id: 'donations', icon: ListIcon, label: 'Manage' },
         ].map(item => (
           <button key={item.id} onClick={() => {
-          setActiveTab(item.id);
-          if (item.id === "donations" || item.id === "dashboard") {
-            refreshDonorData().catch(() => {});
-          }
-        }} className={`flex flex-col items-center gap-1 p-2 min-w-[64px] ${activeTab === item.id ? 'text-forest' : 'text-ink-muted'}`}>
+            setActiveTab(item.id);
+            if (item.id === "donations" || item.id === "dashboard") {
+              refreshDonorData().catch(() => { });
+            }
+          }} className={`flex flex-col items-center gap-1 p-2 min-w-[64px] ${activeTab === item.id ? 'text-forest' : 'text-ink-muted'}`}>
             <item.icon className="w-6 h-6" />
             <span className="text-[10px] font-bold">{item.label}</span>
           </button>
