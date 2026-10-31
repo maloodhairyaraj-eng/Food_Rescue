@@ -408,9 +408,7 @@ export default function RestaurantDashboard() {
     { id: 'create', label: 'Create Donation', icon: PlusCircle },
     { id: 'donations', label: 'My Donations', icon: ListIcon },
     { id: 'collaborations', label: 'NGO Collaborations', icon: Users },
-    { id: 'containers', label: 'Container Management', icon: PackageOpen },
     { id: 'impact', label: 'Rescue History & Impact', icon: BarChart3 },
-    { id: 'ratings', label: 'Ratings & Feedback', icon: Star },
     { id: 'profile', label: 'Restaurant Profile', icon: UserIcon },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -1473,7 +1471,6 @@ export default function RestaurantDashboard() {
     <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-6">
       <div className="border-b border-line pb-4">
         <h2 className="text-2xl font-display font-bold text-forest uppercase">Container Management</h2>
-        <p className="text-sm text-ink-muted mt-1">Monitor partner NGO container inventory stored at your location.</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -1559,55 +1556,6 @@ export default function RestaurantDashboard() {
     </div>
   );
 
-  const renderRatings = () => (
-    <div className="max-w-4xl mx-auto space-y-6 pb-20 md:pb-6">
-      <div className="border-b border-line pb-4">
-        <h2 className="text-2xl font-display font-bold text-forest uppercase">Ratings & Feedback</h2>
-        <p className="text-sm text-ink-muted mt-1">Understand your donation performance.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1 bg-forest p-8 rounded-3xl text-paper text-center flex flex-col items-center justify-center">
-          <p className="text-xs font-bold text-sage-light uppercase tracking-wider mb-2">Donor Reliability</p>
-          <p className="text-6xl font-display font-bold mb-2">96<span className="text-2xl text-sage">/100</span></p>
-          <span className="px-3 py-1 bg-sage/30 text-paper text-[10px] font-bold uppercase rounded-full flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Verified Donor</span>
-        </div>
-        <div className="md:col-span-2 bg-paper p-6 rounded-3xl border border-line shadow-sm">
-          <h4 className="font-bold text-charcoal uppercase tracking-wider text-xs border-b border-line pb-2 mb-4">Performance Indicators</h4>
-          <div className="space-y-4">
-            {[
-              { label: 'Listing Accuracy', val: '98%' },
-              { label: 'Food Readiness at Pickup', val: '95%' },
-              { label: 'Successful Handovers', val: '99%' },
-              { label: 'Cancellation Rate', val: '2%' }
-            ].map((ind, i) => (
-              <div key={i} className="flex justify-between items-center">
-                <span className="text-sm text-charcoal font-bold">{ind.label}</span>
-                <span className="text-sm font-display font-bold text-forest">{ind.val}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-paper border border-line rounded-2xl shadow-sm overflow-hidden mt-6">
-        <div className="p-6 border-b border-line bg-ivory"><h4 className="font-bold text-charcoal uppercase tracking-wider text-xs">NGO Feedback</h4></div>
-        <div className="p-6 space-y-4">
-          <div className="border-b border-line pb-4 last:border-0 last:pb-0">
-            <div className="flex justify-between items-start mb-2">
-              <h5 className="font-bold text-charcoal uppercase">XYZ Foundation</h5>
-              <div className="flex text-gold"><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /></div>
-            </div>
-            <p className="text-sm text-ink-muted italic">
-              &quot;Food is always packed perfectly in the containers and
-              ready right on time. Great partner!&quot;
-            </p>
-            <p className="text-[10px] text-ink-muted font-bold mt-2 uppercase">Oct 28 • Vegetable Biryani</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 
   const renderProfile = () => {
     if (isEditingProfile) {
@@ -1947,9 +1895,7 @@ export default function RestaurantDashboard() {
         {activeTab === 'create' && renderCreateDonation()}
         {activeTab === 'donations' && renderMyDonations()}
         {activeTab === 'collaborations' && renderCollaborations()}
-        {activeTab === 'containers' && renderContainers()}
         {activeTab === 'impact' && renderImpact()}
-        {activeTab === 'ratings' && renderRatings()}
         {activeTab === 'profile' && renderProfile()}
         {activeTab === 'settings' && renderSettings()}
       </main>
