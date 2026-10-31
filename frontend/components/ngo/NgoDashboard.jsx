@@ -3,6 +3,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import NgoVolunteerDirectory from "./NgoVolunteerDirectory";
+import NgoHistoryImpact from "./NgoHistoryImpact";
 import {
   LayoutDashboard,
   Search,
@@ -34,7 +36,6 @@ const sidebarItems = [
   { id: "requests", label: "Food Requests", icon: Search },
   { id: "collaborations", label: "Collaborations", icon: Users },
   { id: "volunteers", label: "Volunteers", icon: Truck },
-  { id: "containers", label: "Containers", icon: PackageOpen },
   { id: "impact", label: "History & Impact", icon: BarChart3 },
   { id: "profile", label: "NGO Profile", icon: UserIcon },
   { id: "settings", label: "Settings", icon: Settings },
@@ -225,11 +226,10 @@ export default function NgoDashboard() {
   useEffect(() => {
     let active = true;
     Promise.resolve().then(() => {
-      if (active) loadMyPickupRequests().catch(() => {});
+      if (active) loadMyPickupRequests().catch(() => { });
     });
     return () => { active = false; };
     // Initial history load only; subsequent refreshes are explicit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1303,11 +1303,11 @@ export default function NgoDashboard() {
 
   return (
     <div className="h-screen bg-ivory flex flex-col text-charcoal font-body overflow-hidden">
-      <header className="bg-paper border-b border-line px-6 py-4 flex items-center justify-between shrink-0 z-20">
+      <header className="bg-forest border-b border-gold/40 px-6 py-4 flex items-center justify-between shrink-0 z-20 shadow-md">
         <div className="w-64 flex items-center gap-3">
-          <Leaf className="w-8 h-8 text-forest" />
+          <Leaf className="w-8 h-8 text-gold" />
 
-          <h1 className="text-xl font-display font-bold text-forest tracking-tight">
+          <h1 className="text-xl font-display font-bold text-ivory tracking-tight">
             ZeroWaste
           </h1>
         </div>
@@ -1317,23 +1317,23 @@ export default function NgoDashboard() {
             type="button"
             aria-label="Open settings"
             onClick={() => setActiveTab("settings")}
-            className="p-2 text-ink-muted hover:text-forest"
+            className="p-2 text-ivory hover:text-gold transition-colors"
           >
             <Settings className="w-6 h-6" />
           </button>
 
           <div className="flex items-center gap-3 pl-6 border-l border-line">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-forest">
+              <p className="text-sm font-bold text-ivory">
                 {profile?.name || "NGO"}
               </p>
 
-              <p className="text-xs text-ink-muted">
+              <p className="text-xs text-gold">
                 {profile?.status || "Verification pending"}
               </p>
             </div>
 
-            <div className="w-10 h-10 bg-forest text-paper rounded-full flex items-center justify-center font-bold">
+            <div className="w-11 h-11 rounded-full bg-gold text-forest-deep flex items-center justify-center font-bold">
               {profile?.name
                 ? profile.name.slice(0, 2).toUpperCase()
                 : "NG"}
@@ -1343,7 +1343,7 @@ export default function NgoDashboard() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-64 bg-paper border-r border-line flex-col overflow-y-auto shrink-0 pb-6 z-10 hidden md:flex">
+        <aside className="w-64 bg-forest-deep border-r border-gold/20 flex-col overflow-y-auto shrink-0 pb-6 z-10 hidden md:flex">
           <nav className="flex-1 px-4 pt-6 space-y-1">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
@@ -1361,10 +1361,12 @@ export default function NgoDashboard() {
                     }
                   }}
 
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm ${activeTab === item.id
-                    ? "bg-sage-light text-forest shadow-sm"
-                    : "text-ink-muted hover:bg-ivory hover:text-forest"
+
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium text-sm ${activeTab === item.id
+                      ? "bg-gold text-forest-deep shadow-md font-bold"
+                      : "text-ivory hover:bg-forest hover:text-gold"
                     }`}
+
                 >
                   <Icon className="w-5 h-5" />
                   {item.label}
@@ -1374,30 +1376,20 @@ export default function NgoDashboard() {
           </nav>
         </aside>
 
-        <main className="flex-1 overflow-y-auto bg-ivory p-6 md:p-10 relative">
+        <main className="flex-1 overflow-y-auto bg-ivory p-5 md:p-8 lg:p-10 relative">
           {activeTab === "dashboard" && renderDashboard()}
 
           {activeTab === "requests" && renderFoodRequests()}
 
           {activeTab === "collaborations" && renderPickupHistory()}
 
-          {activeTab === "volunteers" &&
-            renderPlaceholder(
-              Truck,
-              "Volunteer directory pending frontend integration."
-            )}
+          {activeTab === "volunteers" && (
+            <NgoVolunteerDirectory />
+          )}
 
-          {activeTab === "containers" &&
-            renderPlaceholder(
-              PackageOpen,
-              "Container tracking is not yet implemented."
-            )}
-
-          {activeTab === "impact" &&
-            renderPlaceholder(
-              BarChart3,
-              "Impact analytics integration is pending."
-            )}
+          {activeTab === "impact" && (
+            <NgoHistoryImpact />
+          )}
 
           {activeTab === "profile" && renderProfile()}
 

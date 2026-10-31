@@ -157,7 +157,7 @@ export const api = {
     fetchWithAuth("/volunteer/availability"),
 
   updateVolunteerAvailability: (isAvailable) =>
-    fetchWithAuth("/volunteer/availability", {
+    fetchWithAuth("/volunteer/availability", {  
       method: "PATCH",
       body: JSON.stringify({ isAvailable }),
     }),

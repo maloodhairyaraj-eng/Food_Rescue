@@ -1,41 +1,189 @@
 @import "tailwindcss";
 
 @theme {
-  /* Core Palette */
-  --color-forest: #244C3B;
-  --color-forest-deep: #1A3A2C;
-  --color-ivory: #F7F4EB;
-  --color-paper: #FFFDF8;
-  --color-charcoal: #252722;
-  --color-ink-muted: #5E6158;
-  --color-line: #E3DDCB;
-  --color-sage: #A5B69A;
-  --color-sage-light: #DCE5D5;
-  --color-terracotta: #C76B50;
-  --color-terracotta-deep: #A9502F;
-  --color-gold: #D8AD58;
-  --color-gold-light: #F3E3BC;
+  /* =========================================
+     ZEROWASTE — EMERALD NIGHT
+     ========================================= */
 
-  /* Status Colors */
-  --color-st-fresh-bg: #DCE5D5;
-  --color-st-fresh-fg: #244C3B;
-  --color-st-soon-bg: #F3E3BC;
-  --color-st-soon-fg: #6B4E0E;
-  --color-st-urgent-bg: #F6DDD3;
-  --color-st-urgent-fg: #8A3E22;
-  --color-st-done-bg: #244C3B;
-  --color-st-done-fg: #FFFDF8;
+  /* Primary emerald palette */
+  --color-forest: #2F5A44;
+  --color-forest-deep: #244A37;
+
+  /* Warm cream surfaces */
+  --color-ivory: #F1E3D3;
+  --color-paper: #FAF5ED;
 
   /* Typography */
-  --font-display: 'Bricolage Grotesque', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  --color-charcoal: #244A37;
+  --color-ink-muted: #52675A;
+
+  /* Borders and dividers */
+  --color-line: #D9C8B4;
+
+  /* Supporting greens */
+  --color-sage: #4A7A62;
+  --color-sage-light: #DCE8DC;
+
+  /* Antique gold */
+  --color-gold: #D4A373;
+  --color-gold-light: #EAD3B9;
+
+  /* Legacy terracotta aliases */
+  /* Preserved to avoid breaking components */
+  --color-terracotta: #B98059;
+  --color-terracotta-deep: #956044;
+
+  /* =========================================
+     STATUS COLORS
+     ========================================= */
+
+  --color-st-fresh-bg: #DCE8DC;
+  --color-st-fresh-fg: #244A37;
+
+  --color-st-soon-bg: #F2E1C5;
+  --color-st-soon-fg: #77501F;
+
+  --color-st-urgent-bg: #F5DDD1;
+  --color-st-urgent-fg: #8A3E22;
+
+  --color-st-done-bg: #2F5A44;
+  --color-st-done-fg: #F1E3D3;
+
+  /* =========================================
+     FONTS
+     ========================================= */
+
+  --font-display: "Bricolage Grotesque", sans-serif;
+  --font-body: "DM Sans", sans-serif;
 }
 
 @layer base {
+  html {
+    color-scheme: light;
+  }
+
   body {
     @apply bg-ivory text-charcoal font-body;
+    min-height: 100vh;
   }
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-display tracking-tight;
+  }
+
+  ::selection {
+    background: #D4A373;
+    color: #244A37;
+  }
+
+  :focus-visible {
+    outline: 2px solid #2F5A44;
+    outline-offset: 3px;
+  }
+}
+
+/* =========================================
+   SHARED COMPONENT STYLING
+   ========================================= */
+
+@layer components {
+  .zw-card {
+    background: var(--color-paper);
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgb(36 74 55 / 5%);
+  }
+
+  .zw-primary-button {
+    background: var(--color-forest);
+    color: var(--color-ivory);
+    border-radius: 0.75rem;
+    transition:
+      background-color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .zw-primary-button:hover:not(:disabled) {
+    background: var(--color-sage);
+  }
+
+  .zw-primary-button:active:not(:disabled) {
+    background: var(--color-forest-deep);
+    transform: translateY(1px);
+  }
+
+  .zw-primary-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .zw-input {
+    background: var(--color-paper);
+    color: var(--color-charcoal);
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+  }
+
+  .zw-input:focus {
+    outline: 2px solid var(--color-forest);
+    outline-offset: 1px;
+  }
+
+  .zw-gold-border {
+    border: 1px solid var(--color-gold);
+  }
+
+  .zw-emerald-gradient {
+    background: linear-gradient(135deg,
+        #244A37 0%,
+        #2F5A44 55%,
+        #4A7A62 100%);
+  }
+}
+
+/* Emerald Night dashboard refinements */
+
+.zw-dashboard-card {
+  background: #FAF5ED;
+  border: 1px solid #D9C8B4;
+  border-radius: 1.25rem;
+  box-shadow: 0 8px 24px rgb(36 74 55 / 5%);
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.zw-dashboard-card:hover {
+  box-shadow: 0 12px 30px rgb(36 74 55 / 9%);
+  transform: translateY(-2px);
+}
+
+.zw-section-heading {
+  color: #244A37;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.zw-gold-divider {
+  height: 1px;
+  background: linear-gradient(90deg,
+      transparent,
+      #D4A373,
+      transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zw-dashboard-card {
+    transition: none;
+  }
+
+  .zw-dashboard-card:hover {
+    transform: none;
   }
 }

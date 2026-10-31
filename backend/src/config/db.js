@@ -46,7 +46,7 @@ async function testConnection() {
 
     return result.rows[0];
   } finally {
-    client.release();
+    client.release(); 
   }
 }
 
