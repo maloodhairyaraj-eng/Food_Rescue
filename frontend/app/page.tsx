@@ -116,6 +116,7 @@ function parseCoordinates(
   return { latitude, longitude };
 }
 
+
 function buildOrganizationPayload(
   form: SignupForm,
   role: "donor" | "ngo"
@@ -166,12 +167,16 @@ function buildOrganizationPayload(
     throw new Error("Invalid business category.");
   }
 
+  const organizationType:
+    | "ngo"
+    | DonorType =
+    role === "ngo"
+      ? "ngo"
+      : form.businessCategory;
+
   return {
     name,
-    organizationType:
-      role === "ngo"
-        ? "ngo"
-        : form.businessCategory,
+    organizationType,
     description,
     ...(phone ? { contactPhone: phone } : {}),
     address,
@@ -181,6 +186,7 @@ function buildOrganizationPayload(
     ),
   };
 }
+
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {

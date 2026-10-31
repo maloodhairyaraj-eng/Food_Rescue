@@ -1,4 +1,35 @@
 
+export interface Organization {
+    id: string;
+    ownerUserId: string;
+    name: string;
+    organizationType:
+    | "ngo"
+    | "restaurant"
+    | "hostel"
+    | "caterer"
+    | "other_donor";
+    description?: string | null;
+    contactPhone?: string | null;
+    address?: string | null;
+    location?: {
+        latitude: number;
+        longitude: number;
+    } | null;
+    isVerified: boolean;
+    verificationStatus:
+    | "pending"
+    | "approved"
+    | "rejected";
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface OrganizationResponseData {
+    organization: Organization;
+}
+
+
 export interface ApiResponse<T> {
     success: boolean;
     message?: string;
@@ -89,11 +120,28 @@ export const api: {
 
     getMe(): Promise<ApiResponse<{ user: AuthUser }>>;
 
-    getMyOrganization(): Promise<ApiResponse<unknown>>;
+    getMyOrganization(): Promise<
+        ApiResponse<OrganizationResponseData>
+    >;
 
     createOrganization(
-        payload: unknown
-    ): Promise<ApiResponse<unknown>>;
+        payload: {
+            name: string;
+            organizationType:
+            | "ngo"
+            | "restaurant"
+            | "hostel"
+            | "caterer"
+            | "other_donor";
+            description?: string;
+            contactPhone?: string;
+            address: string;
+            location: {
+                latitude: number;
+                longitude: number;
+            };
+        }
+    ): Promise<ApiResponse<OrganizationResponseData>>;
 
     createFoodListing(
         payload: unknown
