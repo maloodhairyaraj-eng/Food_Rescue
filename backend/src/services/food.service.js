@@ -1,11 +1,6 @@
 
 const { pool } = require("../config/db");
 const { validateFoodTimeline } = require("../utils/food-time");
-const {
-    isApprovalRequired,
-    canOrganizationParticipate,
-    sqlEligibilityCondition,
-} = require("../utils/organization-eligibility");
 
 const DONOR_TYPES = [
     "restaurant", "hostel", "caterer", "other_donor",
@@ -64,8 +59,7 @@ function iso(value) {
 
 async function getOwnedOrganization(userId) {
     const result = await pool.query(
-        `SELECT id, organization_type, is_verified,
-            verification_status
+        `SELECT id, organization_type
      FROM organizations
      WHERE owner_user_id = $1 LIMIT 1`,
         [userId]
@@ -88,8 +82,7 @@ async function createFoodListing(user, data) {
         inTransaction = true;
 
         const orgResult = await client.query(
-            `SELECT id, organization_type, is_verified,
-              verification_status
+            `SELECT id, organization_type
        FROM organizations
        WHERE owner_user_id = $1
        FOR UPDATE`,
@@ -100,13 +93,6 @@ async function createFoodListing(user, data) {
 
         if (!org || !DONOR_TYPES.includes(org.organization_type)) {
             throw httpError(403, "Valid donor organization required");
-        }
-
-        if (!canOrganizationParticipate(org)) {
-            throw httpError(
-                403,
-                "Donor organization is not eligible"
-            );
         }
 
         const timelineError = validateFoodTimeline(data);
@@ -160,12 +146,12 @@ async function createFoodListing(user, data) {
 // DISCOVERY: always filter by effective availability,
 // regardless of maintenance-job execution.
 async function listFoodListings(filters = {}) {
-    const values = [isApprovalRequired()];
+    const values = [];
+
     const conditions = [
         "f.status = 'available'",
         "f.expires_at > NOW()",
         "f.pickup_end_at > NOW()",
-        sqlEligibilityCondition("o", 1),
     ];
 
     if (filters.foodType) {
@@ -229,9 +215,7 @@ async function getMyFoodListings(user) {
 async function getFoodListingById(id, user) {
     const result = await pool.query(
         `SELECT ${FOOD_SELECT},
-            o.owner_user_id,
-            o.is_verified AS donor_is_verified,
-            o.verification_status AS donor_verification_status
+            o.owner_user_id
      FROM food_listings f
      JOIN organizations o ON o.id = f.donor_organization_id
      WHERE f.id = $1 LIMIT 1`,
@@ -248,10 +232,6 @@ async function getFoodListingById(id, user) {
 
     const available =
         row.status === "available" &&
-        canOrganizationParticipate({
-            is_verified: row.donor_is_verified,
-            verification_status: row.donor_verification_status,
-        }) &&
         new Date(row.expires_at).getTime() > Date.now() &&
         new Date(row.pickup_end_at).getTime() > Date.now();
 
@@ -271,8 +251,7 @@ async function updateFoodListing(id, user, data) {
         inTransaction = true;
 
         const existing = await client.query(
-            `SELECT f.*, o.owner_user_id,
-              o.is_verified, o.verification_status
+            `SELECT f.*, o.owner_user_id
        FROM food_listings f
        JOIN organizations o ON o.id = f.donor_organization_id
        WHERE f.id = $1

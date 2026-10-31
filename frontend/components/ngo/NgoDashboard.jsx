@@ -51,13 +51,12 @@ function normalizeOrganization(response) {
 
   return {
     ...organization,
-    name: organization.name || "NGO",
     type: organization.organizationType || "ngo",
-    status:
-      organization.verificationStatus ||
-      organization.verification_status ||
-      "pending",
-    description: organization.description || "",
+
+    // NGO accounts no longer require admin verification.
+    status: "Active NGO",
+
+    description: organization.description || "",  
     phone: organization.contactPhone || "",
     address: organization.address || "",
   };
@@ -1023,14 +1022,6 @@ export default function NgoDashboard() {
     );
   };
 
-
-  const renderPlaceholder = (Icon, message) => (
-    <div className="flex flex-col items-center justify-center min-h-64 rounded-2xl border border-dashed border-line bg-paper p-8 text-center text-ink-muted">
-      <Icon className="mb-4 h-10 w-10 text-sage" />
-      <p>{message}</p>
-    </div>
-  );
-
   const renderProfile = () => {
     if (profileError) {
       return (
@@ -1363,8 +1354,8 @@ export default function NgoDashboard() {
 
 
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium text-sm ${activeTab === item.id
-                      ? "bg-gold text-forest-deep shadow-md font-bold"
-                      : "text-ivory hover:bg-forest hover:text-gold"
+                    ? "bg-gold text-forest-deep shadow-md font-bold"
+                    : "text-ivory hover:bg-forest hover:text-gold"
                     }`}
 
                 >
