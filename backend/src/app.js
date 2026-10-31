@@ -8,7 +8,6 @@ const { pool } = require("./config/db");
 const authRoutes = require("./routes/auth.routes");
 const accessRoutes = require("./routes/access.routes");
 const organizationRoutes = require("./routes/organization.routes");
-const adminRoutes = require("./routes/admin.routes");
 const foodRoutes = require("./routes/food.routes");
 const pickupRoutes = require("./routes/pickup.routes");
 const volunteerRoutes = require("./routes/volunteer.routes");
@@ -66,7 +65,6 @@ app.get("/api/v1/health/database", async (req, res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/access", accessRoutes);
 app.use("/api/v1/organizations", organizationRoutes);
-app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/food-listings", foodRoutes);
 app.use("/api/v1/pickup-requests", pickupRoutes);
 app.use("/api/v1/volunteer", volunteerRoutes);
